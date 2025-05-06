@@ -1,0 +1,12 @@
+---
+description: システムについて
+globs: 
+alwaysApply: false
+---
+## 概要
+
+このシステムはタスク管理システムです。
+
+## コーディング規約
+
+- atomic designで実装して下さい
