@@ -1,0 +1,32 @@
+---
+description: GitHubのissue作成ルール
+globs: 
+alwaysApply: false
+---
+## リポジトリ
+
+- https://github.com/higexxp/task-management
+
+## issueの内容
+
+issueは以下の内容が含まれている必要があります。
+
+### 概要
+
+対応内容の概要を記載して下さい。
+
+### 詳細
+
+全てのファイルを読み込んだ上で、対応する手順と内容を記載して下さい。
+
+### ゴール
+
+本issueでの対応のゴールを記載して下さい。
+
+### 修正ファイル一覧
+
+上記詳細で修正するファイル一覧を記載して下さい。
+
+### 前提issue
+
+本issueの前提となるissueを記載して下さい。
