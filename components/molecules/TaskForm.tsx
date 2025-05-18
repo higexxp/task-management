@@ -86,7 +86,12 @@ setErrors(newErrors);
     
     if (validateForm()) {
       // バリデーション成功時の処理
-      alert("送信処理は後続で実装します");
+if (validateForm()) {
+      // バリデーション成功時の処理
+      // TODO: Implement setSuccessMessage function
+      setSuccessMessage("タスクが正常に登録されました");
+    }
+  };
     }
   };
 
