@@ -50,7 +50,38 @@ const TaskForm: React.FC = () => {
     return isValid;
   };
 
+setErrors(newErrors);
+    return isValid;
+  };
+
+  // Import debounce function
+  // import { debounce } from 'lodash';
+
   const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (validateForm()) {
+      // バリデーション成功時の処理
+      alert("送信処理は後続で実装します");
+    }
+  };
+
+  // Implement debounced validation
+  // const debouncedValidate = debounce(() => {
+  //   validateForm();
+  // }, 300);
+
+  // useEffect(() => {
+  //   debouncedValidate();
+  //   return () => {
+  //     debouncedValidate.cancel();
+  //   };
+  // }, [taskName, description, dueDate]);
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <TextField
+        label="タスク名"
     e.preventDefault();
     
     if (validateForm()) {
