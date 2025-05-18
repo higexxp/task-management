@@ -13,7 +13,24 @@ describe('TaskForm', () => {
     expect(screen.getByRole('button', { name: /登録/ })).toBeInTheDocument();
   });
 
+expect(screen.getByRole('button', { name: /登録/ })).toBeInTheDocument();
+  });
+
+  const submitFormAndCheckError = (errorMessage) => {
+    render(<TaskForm />);
+    fireEvent.click(screen.getByRole('button', { name: /登録/ }));
+    expect(screen.getByText(errorMessage)).toBeInTheDocument();
+  };
+
   test('shows validation error for empty task name', () => {
+    submitFormAndCheckError('タスク名は必須です');
+  });
+
+  test('shows validation error for empty description', () => {
+    submitFormAndCheckError('説明は必須です');
+  });
+
+  test('shows no validation errors when form is filled correctly', () => {
     render(<TaskForm />);
     
     // Submit the form without filling any fields
