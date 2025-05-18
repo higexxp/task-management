@@ -1,8 +1,8 @@
 ---
-description: 作業ルール
+description: issue対応ルール
 globs: 
 alwaysApply: false
 ---
 ## コード修正ルール
 
-- 作業時に`issue{issue番号}`のブランチをmainブランチから作成し、ブランチを切り替えてからコードを修正してください
+- 対応時に`issue{issue番号}`のブランチをmainブランチから作成し、ブランチを切り替えてからコードを修正してください
