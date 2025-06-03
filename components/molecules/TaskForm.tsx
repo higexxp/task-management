@@ -50,13 +50,6 @@ const TaskForm: React.FC = () => {
     return isValid;
   };
 
-setErrors(newErrors);
-    return isValid;
-  };
-
-  // Import debounce function
-  // import { debounce } from 'lodash';
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -66,33 +59,9 @@ setErrors(newErrors);
     }
   };
 
-  // Implement debounced validation
-  // const debouncedValidate = debounce(() => {
-  //   validateForm();
-  // }, 300);
-
-  // useEffect(() => {
-  //   debouncedValidate();
-  //   return () => {
-  //     debouncedValidate.cancel();
-  //   };
-  // }, [taskName, description, dueDate]);
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <TextField
-        label="タスク名"
-    e.preventDefault();
-    
-    if (validateForm()) {
-      // バリデーション成功時の処理
-if (validateForm()) {
-      // バリデーション成功時の処理
-      // TODO: Implement setSuccessMessage function
-      setSuccessMessage("タスクが正常に登録されました");
-    }
-  };
-    }
+  const handleCancel = () => {
+    // キャンセルボタン押下時の処理は後ほど実装
+    console.log("キャンセルボタンがクリックされました");
   };
 
   return (
@@ -123,8 +92,9 @@ if (validateForm()) {
         name="dueDate"
         error={errors.dueDate}
       />
-      <div className="mt-6">
+      <div className="mt-6 flex gap-4">
         <Button type="submit">登録</Button>
+        <Button type="button" onClick={handleCancel} className="bg-gray-500 hover:bg-gray-600">キャンセル</Button>
       </div>
     </form>
   );

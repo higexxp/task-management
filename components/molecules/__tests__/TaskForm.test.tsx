@@ -11,42 +11,18 @@ describe('TaskForm', () => {
     expect(screen.getByLabelText(/説明/)).toBeInTheDocument();
     expect(screen.getByLabelText(/期限/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /登録/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /キャンセル/ })).toBeInTheDocument();
   });
-
-expect(screen.getByRole('button', { name: /登録/ })).toBeInTheDocument();
-  });
-
-  const submitFormAndCheckError = (errorMessage) => {
-    render(<TaskForm />);
-    fireEvent.click(screen.getByRole('button', { name: /登録/ }));
-    expect(screen.getByText(errorMessage)).toBeInTheDocument();
-  };
 
   test('shows validation error for empty task name', () => {
-    submitFormAndCheckError('タスク名は必須です');
-  });
-
-  test('shows validation error for empty description', () => {
-    submitFormAndCheckError('説明は必須です');
-  });
-
-  test('shows no validation errors when form is filled correctly', () => {
     render(<TaskForm />);
-    
-    // Submit the form without filling any fields
     fireEvent.click(screen.getByRole('button', { name: /登録/ }));
-    
-    // Check if error messages are displayed
     expect(screen.getByText('タスク名は必須です')).toBeInTheDocument();
   });
 
   test('shows validation error for empty description', () => {
     render(<TaskForm />);
-    
-    // Submit the form without filling any fields
     fireEvent.click(screen.getByRole('button', { name: /登録/ }));
-    
-    // Check if error messages are displayed
     expect(screen.getByText('説明は必須です')).toBeInTheDocument();
   });
 
@@ -85,5 +61,18 @@ expect(screen.getByRole('button', { name: /登録/ })).toBeInTheDocument();
     
     // In a real test, we would check for date validation errors here
     // But due to browser constraints on date inputs, this test is limited
+  });
+
+  test('cancel button exists and is clickable', () => {
+    const consoleSpy = jest.spyOn(console, 'log');
+    render(<TaskForm />);
+    
+    const cancelButton = screen.getByRole('button', { name: /キャンセル/ });
+    expect(cancelButton).toBeInTheDocument();
+    
+    fireEvent.click(cancelButton);
+    expect(consoleSpy).toHaveBeenCalledWith('キャンセルボタンがクリックされました');
+    
+    consoleSpy.mockRestore();
   });
 });
