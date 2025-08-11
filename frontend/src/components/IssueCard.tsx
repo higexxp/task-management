@@ -13,27 +13,41 @@ import {
   OpenInNew as OpenIcon,
   Person as PersonIcon,
   Schedule as TimeIcon,
+  Visibility as ViewIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { EnhancedIssue } from '../utils/metadata';
 import MetadataChip from './MetadataChip';
 
 interface IssueCardProps {
   issue: EnhancedIssue;
+  repository: string; // owner/repo format
   onIssueClick?: (issue: EnhancedIssue) => void;
 }
 
-function IssueCard({ issue, onIssueClick }: IssueCardProps) {
+function IssueCard({ issue, repository, onIssueClick }: IssueCardProps) {
+  const navigate = useNavigate();
+
   const handleCardClick = () => {
     if (onIssueClick) {
       onIssueClick(issue);
+    } else {
+      // Navigate to issue detail page
+      const [owner, repo] = repository.split('/');
+      navigate(`/issues/${owner}/${repo}/${issue.number}`);
     }
   };
 
   const handleOpenInGitHub = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Construct GitHub URL - this would need repository info
-    // For now, we'll just prevent the event
-    console.log('Open in GitHub:', issue);
+    const url = `https://github.com/${repository}/issues/${issue.number}`;
+    window.open(url, '_blank');
+  };
+
+  const handleViewDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const [owner, repo] = repository.split('/');
+    navigate(`/issues/${owner}/${repo}/${issue.number}`);
   };
 
   const formatDate = (dateString: string) => {
@@ -79,15 +93,24 @@ function IssueCard({ issue, onIssueClick }: IssueCardProps) {
               {issue.title}
             </Typography>
           </Box>
-          <Tooltip title="Open in GitHub">
-            <IconButton
-              size="small"
-              onClick={handleOpenInGitHub}
-              sx={{ ml: 1 }}
-            >
-              <OpenIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" gap={0.5}>
+            <Tooltip title="View Details">
+              <IconButton
+                size="small"
+                onClick={handleViewDetails}
+              >
+                <ViewIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Open in GitHub">
+              <IconButton
+                size="small"
+                onClick={handleOpenInGitHub}
+              >
+                <OpenIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         {/* Description */}

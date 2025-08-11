@@ -68,6 +68,7 @@ export const issuesApi = {
       category?: string;
       size?: string;
       status?: string;
+      timeSpent?: number;
     }
   ) => apiClient.put(`/issues/${owner}/${repo}/${issueNumber}/metadata`, metadata),
 };

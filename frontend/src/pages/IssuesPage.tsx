@@ -244,6 +244,7 @@ function IssuesPage() {
             <Grid item xs={12} key={issue.id}>
               <IssueCard
                 issue={issue}
+                repository={ownerRepo}
                 onIssueClick={handleIssueClick}
               />
             </Grid>

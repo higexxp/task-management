@@ -28,7 +28,7 @@ A comprehensive GitHub issue management system with advanced task management fea
 - GitHub OAuth App (for authentication)
 - Redis (optional, for caching)
 
-### Installation
+### Quick Start
 
 1. Clone the repository:
 ```bash
@@ -36,31 +36,38 @@ git clone <repository-url>
 cd github-task-extension
 ```
 
-2. Install dependencies:
+2. Set up the development environment:
+```bash
+make setup
+```
+
+3. Edit `.env` file with your GitHub OAuth credentials
+
+4. Start development servers:
+```bash
+make dev
+```
+
+That's it! Both backend and frontend will start automatically.
+
+### Alternative Installation
+
+If you prefer npm commands:
+
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-3. Set up environment variables:
+2. Set up environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your GitHub OAuth credentials
 ```
 
-4. Start the development servers:
-
-**Option 1: Start both backend and frontend together**
+3. Start the development servers:
 ```bash
 npm run dev:full
-```
-
-**Option 2: Start separately**
-```bash
-# Terminal 1 - Backend
-npm run dev
-
-# Terminal 2 - Frontend  
-npm run dev:frontend
 ```
 
 ### Environment Variables
@@ -110,23 +117,53 @@ For real-time synchronization:
 
 ## Development
 
-### Available Scripts
+### Available Commands
 
-**Backend:**
-- `npm run dev` - Start backend in development mode
-- `npm run dev:redis` - Start backend with Redis enabled
-- `npm run build` - Build backend for production
-- `npm run start` - Start production backend
-- `npm test` - Run backend tests
+**Quick Commands (using Makefile):**
+```bash
+make help          # Show all available commands
+make dev           # Start both backend and frontend
+make dev-redis     # Start with Redis enabled
+make build         # Build both backend and frontend
+make test          # Run all tests
+make clean         # Clean build artifacts
+make setup         # Set up development environment
+```
 
-**Frontend:**
-- `npm run dev:frontend` - Start frontend development server
-- `npm run build:frontend` - Build frontend for production
-- `npm run test:frontend` - Run frontend tests
+**Development:**
+```bash
+make dev-backend   # Start only backend
+make dev-frontend  # Start only frontend
+make dev-reset     # Reset development environment
+```
 
-**Combined:**
+**Testing:**
+```bash
+make test-backend  # Run backend tests only
+make test-frontend # Run frontend tests only
+make test-watch    # Run tests in watch mode
+```
+
+**Docker & Redis:**
+```bash
+make redis-start   # Start Redis container
+make redis-stop    # Stop Redis container
+make docker-up     # Start all services with Docker
+make docker-down   # Stop Docker services
+```
+
+**Utilities:**
+```bash
+make lint          # Run linting
+make format        # Format code
+make health        # Check application health
+make status        # Show current status
+```
+
+**NPM Scripts (alternative):**
 - `npm run dev:full` - Start both backend and frontend
 - `npm run build:all` - Build both backend and frontend
+- `npm test` - Run all tests
 
 ### Testing
 

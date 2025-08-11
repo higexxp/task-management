@@ -182,7 +182,7 @@ router.get('/:owner/:repo/:issueNumber', optionalAuth, async (req: Request, res:
 router.put('/:owner/:repo/:issueNumber/metadata', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { owner, repo, issueNumber } = req.params;
-    const { metadata } = req.body;
+    const metadata = req.body;
 
     // Validate parameters
     if (!owner || !repo || !issueNumber) {

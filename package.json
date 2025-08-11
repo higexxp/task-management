@@ -7,7 +7,7 @@
     "dev": "ENABLE_REDIS=false tsx watch src/server.ts",
     "dev:redis": "ENABLE_REDIS=true tsx watch src/server.ts",
     "dev:frontend": "vite --config frontend/vite.config.ts",
-    "dev:full": "concurrently \"npm run dev\" \"npm run dev:frontend\"",
+    "dev:full": "concurrently --names \"API,WEB\" --prefix-colors \"blue,green\" \"npm run dev\" \"npm run dev:frontend\"",
     "build": "tsc",
     "build:frontend": "vite build --config frontend/vite.config.ts",
     "build:all": "npm run build && npm run build:frontend",
@@ -27,7 +27,11 @@
     "docker:up": "docker-compose up -d",
     "docker:up:redis": "docker-compose --profile redis up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "setup": "npm install && cp .env.example .env",
+    "health": "curl -s http://localhost:3000/health || echo 'Backend not running'",
+    "clean": "rm -rf dist/ node_modules/.cache/ frontend/dist/",
+    "dev:reset": "npm run clean && npm install"
   },
   "keywords": [
     "github",
