@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Grid,
@@ -10,16 +10,33 @@ import {
   ListItem,
   ListItemText,
   Chip,
+  TextField,
+  Alert,
+  Collapse,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   BugReport as IssuesIcon,
   TrendingUp as TrendingIcon,
   Schedule as ScheduleIcon,
   Group as TeamIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
-import { webhooksApi } from '../services/api';
+import { webhooksApi, issuesApi } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
+import PriorityChart from '../components/charts/PriorityChart';
+import CategoryChart from '../components/charts/CategoryChart';
+import ProgressChart from '../components/charts/ProgressChart';
+import DashboardFilters from '../components/DashboardFilters';
+import {
+  EnhancedIssue,
+  extractMetadataFromLabels,
+  filterIssues,
+} from '../utils/metadata';
 
 function DashboardPage() {
   const { data: webhookStats, isLoading } = useQuery({
