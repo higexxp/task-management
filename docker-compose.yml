@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: github-task-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    profiles:
+      - redis
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: github-task-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - ENABLE_REDIS=true
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - redis
+    profiles:
+      - redis
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
