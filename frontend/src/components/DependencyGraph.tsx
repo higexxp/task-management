@@ -335,7 +335,7 @@ function DependencyGraph({
     );
 
     // Handle node clicks
-    const onNodeClick = useCallback(
+    const handleNodeClick = useCallback(
         (event: React.MouseEvent, node: Node) => {
             if (onNodeClick) {
                 const issue = issues.find(i => i.number.toString() === node.id);
@@ -415,7 +415,7 @@ function DependencyGraph({
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onNodeClick={onNodeClick}
+                onNodeClick={handleNodeClick}
                 onEdgeClick={onEdgeClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}

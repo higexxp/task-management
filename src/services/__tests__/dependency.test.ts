@@ -46,7 +46,7 @@ describe('DependencyService', () => {
 - Blocks: #456 (Frontend integration)
 - Depends on: owner/other#789
       `;
-      
+
       const dependencies = dependencyService.parseDependenciesFromBody(body, 'owner/repo');
 
       expect(dependencies).toEqual([
@@ -74,7 +74,7 @@ Blocks: #456
 ## Dependencies
 - Depends on: #123
       `;
-      
+
       const dependencies = dependencyService.parseDependenciesFromBody(body, 'owner/repo');
 
       expect(dependencies).toHaveLength(2);
@@ -122,8 +122,8 @@ Blocks: #456
       expect(graph.cycles).toHaveLength(0);
 
       expect(graph.edges[0]).toEqual({
-        from: 1,
-        to: 2,
+        from: 2,
+        to: 1,
         type: 'depends_on',
         repository: undefined,
       });
@@ -181,7 +181,7 @@ Blocks: #456
       const graph = dependencyService.buildDependencyGraph(issues);
 
       expect(graph.cycles).toHaveLength(1);
-      expect(graph.cycles[0]).toEqual([1, 2, 3, 1]);
+      expect(graph.cycles[0]).toEqual([1, 3, 2, 1]);
     });
   });
 

@@ -19,6 +19,11 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   BugReport as IssuesIcon,
+  Analytics as AnalyticsIcon,
+  AccountTree as DependenciesIcon,
+  Work as WorkloadIcon,
+  Schedule as TimeTrackingIcon,
+  Sync as SyncIcon,
   AccountCircle as AccountIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
@@ -58,6 +63,11 @@ function Layout({ children }: LayoutProps) {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Issues', icon: <IssuesIcon />, path: '/issues' },
+    { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
+    { text: 'Dependencies', icon: <DependenciesIcon />, path: '/dependencies' },
+    { text: 'Workload', icon: <WorkloadIcon />, path: '/workload' },
+    { text: 'Time Tracking', icon: <TimeTrackingIcon />, path: '/time-tracking' },
+    { text: 'Sync & Cache', icon: <SyncIcon />, path: '/sync' },
   ];
 
   const drawer = (

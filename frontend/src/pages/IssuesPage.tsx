@@ -65,7 +65,7 @@ function IssuesPage() {
 
   // Transform GitHub issues to enhanced issues with metadata
   const enhancedIssues: EnhancedIssue[] = useMemo(() => {
-    const rawIssues = issuesData?.data?.issues || [];
+    const rawIssues = issuesData?.data?.data?.issues || [];
     return rawIssues.map((issue: any) => ({
       ...issue,
       metadata: extractMetadataFromLabels(issue.labels || []),

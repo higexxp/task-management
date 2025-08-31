@@ -34,15 +34,24 @@ export class DependencyService {
    */
   parseDependenciesFromBody(body: string, currentRepository?: string): IssueDependency[] {
     const dependencies: IssueDependency[] = [];
-    
+
     if (!body) return dependencies;
 
-    // Parse "Depends on: #123, #456, owner/repo#789" format
-    const dependsOnRegex = /(?:depends\s+on|依存):\s*((?:(?:\w+\/\w+)?#\d+(?:\s*,\s*)?)+)/gi;
+    // Parse "Depends on: #123, #456, owner/repo#789" format (not in lists)
+    const dependsOnRegex = /(Depends on|depends on|依存):\s*(.*)/gi;
     const dependsOnMatches = body.matchAll(dependsOnRegex);
-    
+
     for (const match of dependsOnMatches) {
-      const issueRefs = match[1]?.match(/(?:(\w+\/\w+))?#(\d+)/g);
+      // Skip if this is part of a structured list (starts with - or *)
+      if (match.index !== undefined) {
+        const lineStart = body.lastIndexOf('\n', match.index) + 1;
+        const linePrefix = body.substring(lineStart, match.index).trim();
+        if (linePrefix.startsWith('-') || linePrefix.startsWith('*')) {
+          continue;
+        }
+      }
+
+      const issueRefs = match[2]?.match(/(?:(\w+\/[\w-]+))?#(\d+)/g);
       if (issueRefs) {
         for (const issueRef of issueRefs) {
           const parsed = this.parseIssueReference(issueRef, currentRepository);
@@ -57,12 +66,21 @@ export class DependencyService {
       }
     }
 
-    // Parse "Blocks: #789, #101, owner/repo#456" format
-    const blocksRegex = /(?:blocks|ブロック):\s*((?:(?:\w+\/\w+)?#\d+(?:\s*,\s*)?)+)/gi;
+    // Parse "Blocks: #789, #101, owner/repo#456" format (not in lists)
+    const blocksRegex = /(Blocks|blocks|ブロック):\s*(.*)/gi;
     const blocksMatches = body.matchAll(blocksRegex);
-    
+
     for (const match of blocksMatches) {
-      const issueRefs = match[1]?.match(/(?:(\w+\/\w+))?#(\d+)/g);
+      // Skip if this is part of a structured list (starts with - or *)
+      if (match.index !== undefined) {
+        const lineStart = body.lastIndexOf('\n', match.index) + 1;
+        const linePrefix = body.substring(lineStart, match.index).trim();
+        if (linePrefix.startsWith('-') || linePrefix.startsWith('*')) {
+          continue;
+        }
+      }
+
+      const issueRefs = match[2]?.match(/(?:(\w+\/[\w-]+))?#(\d+)/g);
       if (issueRefs) {
         for (const issueRef of issueRefs) {
           const parsed = this.parseIssueReference(issueRef, currentRepository);
@@ -88,10 +106,10 @@ export class DependencyService {
    * Parse issue reference like "#123" or "owner/repo#456"
    */
   private parseIssueReference(
-    issueRef: string, 
+    issueRef: string,
     currentRepository?: string
   ): { issueNumber: number; repository?: string | undefined } | null {
-    const match = issueRef.match(/(?:(\w+\/\w+))?#(\d+)/);
+    const match = issueRef.match(/(?:(\w+\/[\w-]+))?#(\d+)/);
     if (!match || !match[2]) return null;
 
     const repository = match[1] || currentRepository;
@@ -122,12 +140,12 @@ export class DependencyService {
       const sectionContent = sectionMatch[1];
       if (!sectionContent) continue;
 
-      const lineRegex = /[-*]\s*(?:(Depends on|Blocks|依存|ブロック)):\s*(?:(\w+\/\w+))?#(\d+)(?:\s*\(([^)]+)\))?/gi;
+      const lineRegex = /[-*]\s*(?:(Depends on|Blocks|依存|ブロック)):\s*(?:(\w+\/[\w-]+))?#(\d+)(?:\s*\(([^)]+)\))?/gi;
       const lineMatches = sectionContent.matchAll(lineRegex);
 
       for (const lineMatch of lineMatches) {
-        const type = lineMatch[1]?.toLowerCase().includes('depends') || lineMatch[1]?.includes('依存') 
-          ? 'depends_on' 
+        const type = lineMatch[1]?.toLowerCase().includes('depends') || lineMatch[1]?.includes('依存')
+          ? 'depends_on'
           : 'blocks';
         const repository = lineMatch[2] || (currentRepository !== lineMatch[2] ? undefined : currentRepository);
         if (lineMatch[3]) {
@@ -197,7 +215,7 @@ export class DependencyService {
       for (const dep of issue.dependencies) {
         const targetRepo = dep.repository || issue.repository;
         const targetKey = `${targetRepo}:${dep.issueNumber}`;
-        
+
         // Ensure target node exists
         if (!nodeMap.has(targetKey)) {
           const targetNode: DependencyNode = {
@@ -211,16 +229,18 @@ export class DependencyService {
 
         // Create edge based on dependency type
         if (dep.type === 'depends_on') {
+          // Issue depends on dep.issueNumber, so edge goes from dependency to dependent
           edges.push({
-            from: issue.issueNumber,
-            to: dep.issueNumber,
+            from: dep.issueNumber,
+            to: issue.issueNumber,
             type: 'depends_on',
             repository: dep.repository || undefined,
           });
         } else if (dep.type === 'blocks') {
+          // Issue blocks dep.issueNumber, so edge goes from blocker to blocked
           edges.push({
-            from: dep.issueNumber,
-            to: issue.issueNumber,
+            from: issue.issueNumber,
+            to: dep.issueNumber,
             type: 'blocks',
             repository: dep.repository || undefined,
           });

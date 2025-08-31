@@ -9,53 +9,88 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { GitHub as GitHubIcon } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
-import { authApi } from '../services/api';
+import { authService } from '../services/auth';
 
 function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { login } = useAuth();
 
   useEffect(() => {
-    // Handle OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
+    console.log('LoginPage mounted');
 
-    if (error) {
-      setError('GitHub authentication was cancelled or failed.');
-      return;
-    }
+    try {
+      // Handle OAuth callback
+      const result = authService.handleOAuthCallback();
+      console.log('OAuth callback result:', result);
 
-    if (code) {
-      handleCallback(code);
+      if (result.success) {
+        console.log('OAuth success, redirecting...');
+        // Redirect to main app
+        window.location.href = '/';
+      } else if (result.error) {
+        console.log('OAuth error:', result.error);
+        setError(result.error);
+      }
+    } catch (err) {
+      console.error('Error in OAuth callback handling:', err);
+      setError('Failed to process authentication callback');
     }
   }, []);
 
-  const handleCallback = async (code: string) => {
+  const handleGitHubLogin = async () => {
     try {
+      console.log('Initiating GitHub login...');
       setLoading(true);
       setError(null);
-      await login(code);
-      // Navigation will be handled by App component
+
+      // Initiate GitHub OAuth flow
+      authService.initiateGitHubAuth();
     } catch (err) {
-      console.error('Login callback failed:', err);
-      setError('Failed to complete GitHub authentication. Please try again.');
-    } finally {
+      console.error('Failed to initiate GitHub auth:', err);
+      setError('Failed to initiate GitHub authentication. Please try again.');
       setLoading(false);
     }
   };
 
-  const handleGitHubLogin = async () => {
+  const handleDemoLogin = async () => {
     try {
+      console.log('Initiating demo login...');
       setLoading(true);
       setError(null);
-      const response = await authApi.getAuthUrl();
-      window.location.href = response.data.url;
+
+      // Ask user if they want to use a Personal Access Token
+      const useRealGitHub = window.confirm(
+        'Do you want to connect to real GitHub?\n\n' +
+        'Click "OK" to enter your Personal Access Token for real GitHub connection.\n' +
+        'Click "Cancel" for mock demo login.'
+      );
+
+      let token = null;
+      if (useRealGitHub) {
+        token = window.prompt(
+          'Enter your GitHub Personal Access Token:\n\n' +
+          'You can create one at: https://github.com/settings/tokens\n' +
+          'Required scopes: repo, read:user, user:email'
+        );
+
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      const result = await authService.demoAuth('demo-user', token);
+
+      if (result.success) {
+        console.log('Demo login successful, redirecting...');
+        window.location.href = '/';
+      } else {
+        setError(result.error || 'Demo login failed');
+      }
     } catch (err) {
-      console.error('Failed to get GitHub auth URL:', err);
-      setError('Failed to initiate GitHub authentication. Please try again.');
+      console.error('Failed to demo login:', err);
+      setError('Demo login failed. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -83,7 +118,7 @@ function LoginPage() {
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
+              Failed to initiate GitHub authentication. Please try again.
             </Alert>
           )}
 
@@ -102,8 +137,22 @@ function LoginPage() {
               },
             }}
           >
-            {loading ? 'Connecting...' : 'Sign in with GitHub'}
+            {loading ? 'Connecting...' : 'SIGN IN WITH GITHUB'}
           </Button>
+
+          {/* Development Demo Login */}
+          {process.env.NODE_ENV === 'development' && (
+            <Button
+              fullWidth
+              variant="outlined"
+              size="large"
+              onClick={handleDemoLogin}
+              disabled={loading}
+              sx={{ mt: 2 }}
+            >
+              Demo Login (Development)
+            </Button>
+          )}
 
           <Box mt={3} textAlign="center">
             <Typography variant="caption" color="text.secondary">

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { WebhookService } from '../services/webhook.js';
+import { getWebSocketService } from '../services/websocket.js';
 import { logger } from '../utils/logger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
@@ -14,7 +15,7 @@ router.post('/github', asyncHandler(async (req: Request, res: Response) => {
   const signature = req.headers['x-hub-signature-256'] as string;
   const eventType = req.headers['x-github-event'] as string;
   const deliveryId = req.headers['x-github-delivery'] as string;
-  
+
   logger.info('Received GitHub webhook', {
     eventType,
     deliveryId,
@@ -35,7 +36,37 @@ router.post('/github', asyncHandler(async (req: Request, res: Response) => {
   try {
     // Process the webhook event
     await webhookService.processWebhookEvent(req.body, eventType);
-    
+
+    // Notify WebSocket clients about the update
+    try {
+      const webSocketService = getWebSocketService();
+      const repository = req.body.repository?.full_name;
+
+      if (repository) {
+        if (eventType === 'issues') {
+          webSocketService.notifyIssueUpdate(repository, {
+            type: 'webhook_update',
+            action: req.body.action,
+            issue: req.body.issue,
+            eventType,
+          });
+        } else if (eventType === 'label') {
+          webSocketService.notifyLabelUpdate(repository, {
+            type: 'webhook_update',
+            action: req.body.action,
+            label: req.body.label,
+            eventType,
+          });
+        }
+      }
+    } catch (wsError) {
+      logger.warn('Failed to send WebSocket notification', {
+        error: wsError instanceof Error ? wsError.message : 'Unknown error',
+        eventType,
+        deliveryId,
+      });
+    }
+
     logger.info('Successfully processed webhook', {
       eventType,
       deliveryId,
@@ -70,7 +101,7 @@ router.post('/github', asyncHandler(async (req: Request, res: Response) => {
  */
 router.get('/health', asyncHandler(async (req: Request, res: Response) => {
   const stats = await webhookService.getWebhookStats();
-  
+
   res.json({
     status: 'healthy',
     service: 'webhook',
@@ -89,7 +120,7 @@ router.post('/test', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const { eventType, mockData } = req.body;
-  
+
   if (!eventType) {
     res.status(400).json({
       error: 'Missing eventType',
@@ -100,7 +131,7 @@ router.post('/test', asyncHandler(async (req: Request, res: Response) => {
 
   try {
     await webhookService.testWebhook(eventType, mockData || {});
-    
+
     res.json({
       success: true,
       message: 'Test webhook processed successfully',
@@ -125,7 +156,7 @@ router.post('/test', asyncHandler(async (req: Request, res: Response) => {
  */
 router.get('/stats', asyncHandler(async (req: Request, res: Response) => {
   const stats = await webhookService.getWebhookStats();
-  
+
   res.json({
     success: true,
     data: stats,

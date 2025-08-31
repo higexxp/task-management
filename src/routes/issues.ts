@@ -41,9 +41,22 @@ router.get('/:owner/:repo', optionalAuth, async (req: Request, res: Response) =>
       page as string
     );
     let issues = await redisService.get<any[]>(cacheKey);
+    
+    logger.info('Cache lookup', {
+      cacheKey,
+      foundInCache: !!issues,
+      cachedCount: issues?.length || 0
+    });
 
     if (!issues) {
       // Create GitHub service (with user token if authenticated)
+      logger.info('Creating GitHub service', { 
+        authenticated: !!req.user,
+        userId: req.user?.id,
+        hasToken: !!req.user?.access_token,
+        tokenPreview: req.user?.access_token ? req.user.access_token.substring(0, 8) + '...' : 'none'
+      });
+      
       const githubService = new GitHubService(req.user?.access_token);
 
       // Fetch issues with metadata

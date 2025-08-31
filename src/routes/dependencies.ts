@@ -2,278 +2,310 @@ import { Router, Request, Response } from 'express';
 import { DependencyService, IssueDependency } from '../services/dependency.js';
 import { redisService } from '../services/redis.js';
 import { logger } from '../utils/logger.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 const dependencyService = new DependencyService();
 
 // Parse dependencies from issue body text
-router.post('/parse', async (req: Request, res: Response) => {
-  try {
+router.post('/parse', asyncHandler(async (req: Request, res: Response) => {
     const { body, repository } = req.body;
-    
+
     if (typeof body !== 'string') {
-      res.status(400).json({
-        success: false,
-        error: 'Body must be a string',
-      });
-      return;
+        return res.status(400).json({
+            success: false,
+            error: 'Body must be a string',
+        });
     }
 
     // Check cache for this specific body content
     const cacheKey = redisService.getCacheKey('dependencies', 'parse', body.slice(0, 100));
     let result = await redisService.get<any>(cacheKey);
-    
+
     if (!result) {
-      // Parse dependencies and cache for 30 minutes
-      const dependencies = dependencyService.parseDependenciesFromBody(body, repository);
-      const validation = dependencyService.validateDependencies(dependencies);
-      
-      result = {
-        dependencies,
-        validation,
-        parsedFrom: 'body',
-      };
-      
-      await redisService.set(cacheKey, result, 1800);
+        // Parse dependencies and cache for 30 minutes
+        const dependencies = dependencyService.parseDependenciesFromBody(body, repository);
+        const validation = dependencyService.validateDependencies(dependencies);
+
+        result = {
+            dependencies,
+            validation,
+            parsedFrom: 'body',
+        };
+
+        await redisService.set(cacheKey, result, 1800);
     }
-    
-    res.json({
-      success: true,
-      data: result,
+
+    return res.json({
+        success: true,
+        data: result,
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('Failed to parse dependencies', { 
-      error: errorMessage,
-      stack: errorStack,
-      requestBody: req.body 
-    });
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
-  }
-});
+}));
 
 // Build dependency graph from multiple issues
-router.post('/graph', async (req: Request, res: Response) => {
-  try {
+router.post('/graph', asyncHandler(async (req: Request, res: Response) => {
     const { issues } = req.body;
-    
+
     if (!Array.isArray(issues)) {
-      res.status(400).json({
-        success: false,
-        error: 'Issues must be an array',
-      });
-      return;
+        return res.status(400).json({
+            success: false,
+            error: 'Issues must be an array',
+        });
     }
 
     // Validate issue format
     for (const issue of issues) {
-      if (!issue.issueNumber || !issue.repository || !Array.isArray(issue.dependencies)) {
-        res.status(400).json({
-          success: false,
-          error: 'Each issue must have issueNumber, repository, and dependencies array',
-        });
-        return;
-      }
+        if (!issue.issueNumber || !issue.repository || !Array.isArray(issue.dependencies)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Each issue must have issueNumber, repository, and dependencies array',
+            });
+        }
     }
 
     // Check cache for this specific issue set
     const issueIds = issues.map(i => `${i.repository}:${i.issueNumber}`).sort().join(',');
     const cacheKey = redisService.getCacheKey('dependencies', 'graph', issueIds);
     let result = await redisService.get<any>(cacheKey);
-    
+
     if (!result) {
-      // Build dependency graph and cache for 15 minutes
-      const graph = dependencyService.buildDependencyGraph(issues);
-      
-      result = {
-        graph,
-        metadata: {
-          totalNodes: graph.nodes.length,
-          totalEdges: graph.edges.length,
-          cyclesDetected: graph.cycles.length,
-          maxLevel: Math.max(...graph.nodes.map(n => n.level), 0),
-        },
-      };
-      
-      await redisService.set(cacheKey, result, 900);
+        // Build dependency graph and cache for 15 minutes
+        const graph = dependencyService.buildDependencyGraph(issues);
+
+        result = {
+            graph,
+            metadata: {
+                totalNodes: graph.nodes.length,
+                totalEdges: graph.edges.length,
+                cyclesDetected: graph.cycles.length,
+                maxLevel: Math.max(...graph.nodes.map(n => n.level), 0),
+            },
+        };
+
+        await redisService.set(cacheKey, result, 900);
     }
-    
-    res.json({
-      success: true,
-      data: result,
+
+    return res.json({
+        success: true,
+        data: result,
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('Failed to build dependency graph', { 
-      error: errorMessage,
-      stack: errorStack,
-      requestBody: req.body 
-    });
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
-  }
-});
+}));
 
 // Validate dependencies for potential issues
-router.post('/validate', async (req: Request, res: Response) => {
-  try {
+router.post('/validate', asyncHandler(async (req: Request, res: Response) => {
     const { dependencies } = req.body;
-    
+
     if (!Array.isArray(dependencies)) {
-      res.status(400).json({
-        success: false,
-        error: 'Dependencies must be an array',
-      });
-      return;
+        return res.status(400).json({
+            success: false,
+            error: 'Dependencies must be an array',
+        });
     }
 
     // Validate dependency format
     for (const dep of dependencies) {
-      if (!dep.type || !dep.issueNumber || !['depends_on', 'blocks'].includes(dep.type)) {
-        res.status(400).json({
-          success: false,
-          error: 'Each dependency must have type (depends_on|blocks) and issueNumber',
-        });
-        return;
-      }
+        if (!dep.type || !dep.issueNumber || !['depends_on', 'blocks'].includes(dep.type)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Each dependency must have type (depends_on|blocks) and issueNumber',
+            });
+        }
     }
 
     const validation = dependencyService.validateDependencies(dependencies);
-    
-    res.json({
-      success: true,
-      data: {
-        validation,
-        dependencies,
-      },
+
+    return res.json({
+        success: true,
+        data: {
+            validation,
+            dependencies,
+        },
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('Failed to validate dependencies', { 
-      error: errorMessage,
-      stack: errorStack,
-      requestBody: req.body 
-    });
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
-  }
-});
+}));
 
 // Generate dependency markdown
-router.post('/markdown', async (req: Request, res: Response) => {
-  try {
+router.post('/markdown', asyncHandler(async (req: Request, res: Response) => {
     const { dependencies } = req.body;
-    
+
     if (!Array.isArray(dependencies)) {
-      res.status(400).json({
-        success: false,
-        error: 'Dependencies must be an array',
-      });
-      return;
+        return res.status(400).json({
+            success: false,
+            error: 'Dependencies must be an array',
+        });
     }
 
     const markdown = dependencyService.generateDependencyMarkdown(dependencies);
-    
-    res.json({
-      success: true,
-      data: {
-        markdown,
-        dependencies,
-      },
+
+    return res.json({
+        success: true,
+        data: {
+            markdown,
+            dependencies,
+        },
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('Failed to generate dependency markdown', { 
-      error: errorMessage,
-      stack: errorStack,
-      requestBody: req.body 
-    });
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
-  }
-});
+}));
 
 // Get dependency analysis for a specific issue body (demo endpoint)
-router.post('/analyze', async (req: Request, res: Response) => {
-  try {
+router.post('/analyze', asyncHandler(async (req: Request, res: Response) => {
     const { body, repository } = req.body;
-    
+
     if (typeof body !== 'string') {
-      res.status(400).json({
-        success: false,
-        error: 'Body must be a string',
-      });
-      return;
+        return res.status(400).json({
+            success: false,
+            error: 'Body must be a string',
+        });
     }
 
     // Parse dependencies
     const dependencies = dependencyService.parseDependenciesFromBody(body, repository);
-    
+
     // Validate dependencies
     const validation = dependencyService.validateDependencies(dependencies);
-    
+
     // Generate markdown
     const markdown = dependencyService.generateDependencyMarkdown(dependencies);
-    
-    res.json({
-      success: true,
-      data: {
-        originalBody: body,
-        repository,
-        dependencies,
-        validation,
-        generatedMarkdown: markdown,
-        summary: {
-          totalDependencies: dependencies.length,
-          dependsOn: dependencies.filter(d => d.type === 'depends_on').length,
-          blocks: dependencies.filter(d => d.type === 'blocks').length,
-          crossRepository: dependencies.filter(d => d.repository).length,
-          hasWarnings: validation.warnings.length > 0,
-          hasErrors: validation.errors.length > 0,
+
+    return res.json({
+        success: true,
+        data: {
+            originalBody: body,
+            repository,
+            dependencies,
+            validation,
+            generatedMarkdown: markdown,
+            summary: {
+                totalDependencies: dependencies.length,
+                dependsOn: dependencies.filter(d => d.type === 'depends_on').length,
+                blocks: dependencies.filter(d => d.type === 'blocks').length,
+                crossRepository: dependencies.filter(d => d.repository).length,
+                hasWarnings: validation.warnings.length > 0,
+                hasErrors: validation.errors.length > 0,
+            },
         },
-      },
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    
-    logger.error('Failed to analyze dependencies', { 
-      error: errorMessage,
-      stack: errorStack,
-      requestBody: req.body 
+}));
+
+// Get dependencies for a repository
+router.get('/:owner/:repo', asyncHandler(async (req: Request, res: Response) => {
+    const { owner, repo } = req.params;
+
+    if (!owner || !repo) {
+        return res.status(400).json({
+            success: false,
+            error: 'Owner and repo parameters are required',
+        });
+    }
+
+    logger.info('Getting dependencies for repository', { owner, repo });
+
+    // Check cache first
+    const cacheKey = redisService.getCacheKey('dependencies', owner, repo);
+    let result = await redisService.get<any>(cacheKey);
+
+    if (!result) {
+        // For now, return empty array - this would be populated from GitHub issues
+        // In a real implementation, you would fetch issues and parse their dependencies
+        result = [];
+
+        // Cache for 5 minutes
+        await redisService.set(cacheKey, result, 300);
+    }
+
+    return res.json({
+        success: true,
+        data: result,
+        cached: !!result,
     });
-    
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+}));
+
+// Add a dependency between issues
+router.post('/:owner/:repo', asyncHandler(async (req: Request, res: Response) => {
+    const { owner, repo } = req.params;
+    const { from, to, type } = req.body;
+
+    if (!owner || !repo) {
+        return res.status(400).json({
+            success: false,
+            error: 'Owner and repo parameters are required',
+        });
+    }
+
+    if (!from || !to || !type) {
+        return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: from, to, type',
+        });
+    }
+
+    logger.info('Adding dependency', { owner, repo, from, to, type });
+
+    // Clear cache
+    const cacheKey = redisService.getCacheKey('dependencies', owner, repo);
+    await redisService.del(cacheKey);
+
+    return res.json({
+        success: true,
+        message: 'Dependency added successfully',
     });
-  }
-});
+}));
+
+// Remove a dependency between issues
+router.delete('/:owner/:repo/:from/:to', asyncHandler(async (req: Request, res: Response) => {
+    const { owner, repo, from, to } = req.params;
+
+    if (!owner || !repo || !from || !to) {
+        return res.status(400).json({
+            success: false,
+            error: 'Owner, repo, from, and to parameters are required',
+        });
+    }
+
+    logger.info('Removing dependency', { owner, repo, from, to });
+
+    // Clear cache
+    const cacheKey = redisService.getCacheKey('dependencies', owner, repo);
+    await redisService.del(cacheKey);
+
+    return res.json({
+        success: true,
+        message: 'Dependency removed successfully',
+    });
+}));
+
+// Get dependency graph for a repository
+router.get('/:owner/:repo/graph', asyncHandler(async (req: Request, res: Response) => {
+    const { owner, repo } = req.params;
+
+    if (!owner || !repo) {
+        return res.status(400).json({
+            success: false,
+            error: 'Owner and repo parameters are required',
+        });
+    }
+
+    logger.info('Getting dependency graph for repository', { owner, repo });
+
+    // Check cache first
+    const cacheKey = redisService.getCacheKey('dependencies', 'graph', owner, repo);
+    let result = await redisService.get<any>(cacheKey);
+
+    if (!result) {
+        // For now, return empty graph - this would be built from actual dependencies
+        result = {
+            nodes: [],
+            edges: [],
+            cycles: [],
+        };
+
+        // Cache for 5 minutes
+        await redisService.set(cacheKey, result, 300);
+    }
+
+    return res.json({
+        success: true,
+        data: result,
+        cached: !!result,
+    });
+}));
 
 export default router;

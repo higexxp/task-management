@@ -54,17 +54,33 @@ export const optionalAuth = async (
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
 
+    logger.info('Optional auth middleware', {
+      hasAuthHeader: !!authHeader,
+      tokenPreview: token ? token.substring(0, 10) + '...' : 'none'
+    });
+
     if (token) {
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+      logger.info('JWT decoded', { userId: decoded.userId });
+      
       const sessionData = await redisService.getSession<AuthUser>(`user:${decoded.userId}`);
+      logger.info('Session lookup', { 
+        userId: decoded.userId,
+        foundSession: !!sessionData 
+      });
       
       if (sessionData) {
         req.user = sessionData;
+        logger.info('User authenticated', { 
+          userId: sessionData.id,
+          login: sessionData.login 
+        });
       }
     }
     
     next();
   } catch (error) {
+    logger.error('Optional auth error', { error });
     // Continue without authentication for optional auth
     next();
   }

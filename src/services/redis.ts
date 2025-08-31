@@ -18,7 +18,7 @@ class RedisService {
   constructor() {
     // Check if Redis is disabled by configuration
     this.forceMemoryMode = !config.redis.enabled;
-    
+
     if (this.forceMemoryMode) {
       logger.info('Redis disabled by configuration (ENABLE_REDIS=false), using memory fallback');
       this.useMemoryFallback = true;
@@ -29,7 +29,7 @@ class RedisService {
     // Initialize with memory fallback by default
     this.useMemoryFallback = true;
     this.isConnected = true; // Consider memory fallback as "connected"
-    
+
     // Create Redis client but don't connect immediately
     this.client = createClient({
       url: config.redis.url,
@@ -93,14 +93,14 @@ class RedisService {
         this.usageStats.cacheMisses++;
         return null;
       }
-      
+
       // Check expiry
       if (item.expiry && Date.now() > item.expiry) {
         this.memoryStore.delete(key);
         this.usageStats.cacheMisses++;
         return null;
       }
-      
+
       this.usageStats.cacheHits++;
       return item.value;
     }
@@ -110,7 +110,7 @@ class RedisService {
         this.usageStats.cacheMisses++;
         return null;
       }
-      
+
       const value = await this.client.get(key);
       if (value) {
         this.usageStats.cacheHits++;
@@ -140,7 +140,7 @@ class RedisService {
       if (!this.client) {
         return false;
       }
-      
+
       const serialized = JSON.stringify(value);
       if (ttlSeconds) {
         await this.client.setEx(key, ttlSeconds, serialized);
@@ -163,7 +163,7 @@ class RedisService {
       if (!this.client) {
         return false;
       }
-      
+
       await this.client.del(key);
       return true;
     } catch (error) {
@@ -189,7 +189,7 @@ class RedisService {
       if (!this.client) {
         return 0;
       }
-      
+
       return await this.client.incr(key);
     } catch (error) {
       logger.error('Redis INCR error', { key, error });
@@ -201,13 +201,13 @@ class RedisService {
     if (this.useMemoryFallback) {
       const item = this.memoryStore.get(key);
       if (!item) return false;
-      
+
       // Check expiry
       if (item.expiry && Date.now() > item.expiry) {
         this.memoryStore.delete(key);
         return false;
       }
-      
+
       return true;
     }
 
@@ -215,9 +215,9 @@ class RedisService {
       if (!this.client) {
         return false;
       }
-      
+
       const result = await this.client.exists(key);
-      return result === 1;
+      return Boolean(result);
     } catch (error) {
       logger.error('Redis EXISTS error', { key, error });
       return false;
@@ -258,7 +258,7 @@ class RedisService {
   // Usage monitoring
   private trackUsage(): void {
     this.usageStats.apiCalls++;
-    
+
     // Reset stats every hour
     const now = Date.now();
     if (now - this.usageStats.lastResetTime > 3600000) { // 1 hour
@@ -270,7 +270,7 @@ class RedisService {
   private checkUsageAndRecommend(): void {
     const { apiCalls, cacheHits, cacheMisses } = this.usageStats;
     const hitRate = apiCalls > 0 ? cacheHits / apiCalls : 0;
-    
+
     if (this.forceMemoryMode && apiCalls > 100 && hitRate > 0.5) {
       logger.warn('High cache usage detected!', {
         apiCalls,
@@ -280,7 +280,7 @@ class RedisService {
         recommendation: 'Consider enabling Redis (ENABLE_REDIS=true) for better performance'
       });
     }
-    
+
     if (!this.forceMemoryMode && this.useMemoryFallback && apiCalls > 50) {
       logger.info('Cache usage stats', {
         apiCalls,
@@ -303,14 +303,14 @@ class RedisService {
 
   // Get current usage statistics
   getUsageStats(): typeof this.usageStats & { hitRate: string; mode: string } {
-    const hitRate = this.usageStats.apiCalls > 0 
+    const hitRate = this.usageStats.apiCalls > 0
       ? (this.usageStats.cacheHits / this.usageStats.apiCalls * 100).toFixed(1)
       : '0.0';
-    
-    const mode = this.forceMemoryMode 
-      ? 'memory-only' 
-      : this.useMemoryFallback 
-        ? 'memory-fallback' 
+
+    const mode = this.forceMemoryMode
+      ? 'memory-only'
+      : this.useMemoryFallback
+        ? 'memory-fallback'
         : 'redis';
 
     return {
@@ -323,6 +323,190 @@ class RedisService {
   // Manual trigger for usage check (development only)
   triggerUsageCheck(): void {
     this.checkUsageAndRecommend();
+  }
+
+  /**
+   * Delete keys matching a pattern
+   */
+  async deletePattern(pattern: string): Promise<number> {
+    if (this.useMemoryFallback) {
+      let deleted = 0;
+      const regex = new RegExp(pattern.replace('*', '.*'));
+
+      for (const key of this.memoryStore.keys()) {
+        if (regex.test(key)) {
+          this.memoryStore.delete(key);
+          deleted++;
+        }
+      }
+
+      return deleted;
+    }
+
+    try {
+      if (!this.client) {
+        return 0;
+      }
+
+      const keys = await this.client.keys(pattern);
+      if (keys.length === 0) {
+        return 0;
+      }
+
+      const deleted = await this.client.del(keys);
+      logger.debug('Deleted keys by pattern', { pattern, count: deleted });
+      return deleted;
+    } catch (error) {
+      logger.error('Error deleting keys by pattern', { pattern, error });
+      return 0;
+    }
+  }
+
+  /**
+   * Get Redis info and statistics
+   */
+  async getInfo(): Promise<{
+    keyCount: number;
+    memoryUsage: string;
+    hitRate: number;
+    uptime: number;
+  }> {
+    if (this.useMemoryFallback) {
+      return {
+        keyCount: this.memoryStore.size,
+        memoryUsage: `${Math.round(JSON.stringify(Array.from(this.memoryStore.entries())).length / 1024)}KB`,
+        hitRate: this.usageStats.apiCalls > 0 ? this.usageStats.cacheHits / this.usageStats.apiCalls : 0,
+        uptime: Math.floor((Date.now() - this.usageStats.lastResetTime) / 1000),
+      };
+    }
+
+    try {
+      if (!this.client) {
+        return {
+          keyCount: 0,
+          memoryUsage: '0B',
+          hitRate: 0,
+          uptime: 0,
+        };
+      }
+
+      const info = await this.client.info();
+      const dbInfo = await this.client.info('keyspace');
+
+      // Parse info string
+      const lines = info.split('\\r\\n');
+      const stats: Record<string, string> = {};
+
+      for (const line of lines) {
+        const [key, value] = line.split(':');
+        if (key && value) {
+          stats[key] = value;
+        }
+      }
+
+      // Parse keyspace info
+      const keyspaceLines = dbInfo.split('\\r\\n');
+      let keyCount = 0;
+
+      for (const line of keyspaceLines) {
+        if (line.startsWith('db0:')) {
+          const match = line.match(/keys=(\\d+)/);
+          if (match) {
+            keyCount = parseInt(match[1] || '0');
+          }
+        }
+      }
+
+      return {
+        keyCount,
+        memoryUsage: stats.used_memory_human || '0B',
+        hitRate: parseFloat(stats.keyspace_hit_rate || '0'),
+        uptime: parseInt(stats.uptime_in_seconds || '0'),
+      };
+    } catch (error) {
+      logger.error('Error getting Redis info', { error });
+      return {
+        keyCount: 0,
+        memoryUsage: '0B',
+        hitRate: 0,
+        uptime: 0,
+      };
+    }
+  }
+
+  /**
+   * Get all keys matching a pattern
+   */
+  async getKeys(pattern: string): Promise<string[]> {
+    if (this.useMemoryFallback) {
+      const regex = new RegExp(pattern.replace('*', '.*'));
+      return Array.from(this.memoryStore.keys()).filter(key => regex.test(key));
+    }
+
+    try {
+      if (!this.client) {
+        return [];
+      }
+
+      return await this.client.keys(pattern);
+    } catch (error) {
+      logger.error('Error getting keys', { pattern, error });
+      return [];
+    }
+  }
+
+  /**
+   * Get TTL for a key
+   */
+  async getTTL(key: string): Promise<number> {
+    if (this.useMemoryFallback) {
+      const item = this.memoryStore.get(key);
+      if (!item || !item.expiry) {
+        return -1;
+      }
+
+      const remaining = Math.floor((item.expiry - Date.now()) / 1000);
+      return remaining > 0 ? remaining : -2;
+    }
+
+    try {
+      if (!this.client) {
+        return -1;
+      }
+
+      return await this.client.ttl(key);
+    } catch (error) {
+      logger.error('Error getting TTL', { key, error });
+      return -1;
+    }
+  }
+
+  /**
+   * Set expiration for a key
+   */
+  async expire(key: string, seconds: number): Promise<boolean> {
+    if (this.useMemoryFallback) {
+      const item = this.memoryStore.get(key);
+      if (!item) {
+        return false;
+      }
+
+      item.expiry = Date.now() + (seconds * 1000);
+      this.memoryStore.set(key, item);
+      return true;
+    }
+
+    try {
+      if (!this.client) {
+        return false;
+      }
+
+      const result = await this.client.expire(key, seconds);
+      return Boolean(result);
+    } catch (error) {
+      logger.error('Error setting expiration', { key, seconds, error });
+      return false;
+    }
   }
 }
 

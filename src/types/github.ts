@@ -5,6 +5,7 @@ import type { IssueDependency } from '../services/dependency.js';
 export interface GitHubUser {
   id: number;
   login: string;
+  name?: string;
   avatar_url: string;
   html_url: string;
 }

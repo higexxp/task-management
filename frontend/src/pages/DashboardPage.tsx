@@ -15,6 +15,7 @@ import {
   Collapse,
   IconButton,
   Tooltip,
+  Button,
 } from '@mui/material';
 import {
   BugReport as IssuesIcon,
@@ -24,6 +25,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { webhooksApi, issuesApi } from '../services/api';
@@ -39,49 +41,109 @@ import {
 } from '../utils/metadata';
 
 function DashboardPage() {
-  const { data: webhookStats, isLoading } = useQuery({
+  const [ownerRepo, setOwnerRepo] = useState('');
+
+  const { data: webhookStats, isLoading: webhookLoading } = useQuery({
     queryKey: ['webhook-stats'],
     queryFn: () => webhooksApi.getStats(),
   });
 
-  if (isLoading) {
+  const { data: issuesData, isLoading: issuesLoading, error: issuesError } = useQuery({
+    queryKey: ['dashboard-issues', { ownerRepo }],
+    queryFn: () => {
+      const [owner, repo] = ownerRepo.split('/');
+      return issuesApi.getIssues({
+        owner: owner || undefined,
+        repo: repo || undefined,
+        state: 'all',
+      });
+    },
+    enabled: !!ownerRepo,
+  });
+
+  // Calculate real statistics from GitHub issues
+  const issueStats = useMemo(() => {
+    const issues = issuesData?.data?.data?.issues || [];
+    const openIssues = issues.filter((issue: any) => issue.state === 'open');
+    const closedIssues = issues.filter((issue: any) => issue.state === 'closed');
+    
+    // Calculate in-progress issues (issues with "in progress" or similar labels/status)
+    const inProgressIssues = openIssues.filter((issue: any) => {
+      const metadata = extractMetadataFromLabels(issue.labels || []);
+      return metadata.status === 'in-progress' || 
+             metadata.status === 'doing' ||
+             issue.labels?.some((label: any) => 
+               label.name?.toLowerCase().includes('in progress') ||
+               label.name?.toLowerCase().includes('in-progress') ||
+               label.name?.toLowerCase().includes('doing')
+             );
+    });
+
+    // Get unique assignees/team members
+    const uniqueAssignees = new Set();
+    issues.forEach((issue: any) => {
+      issue.assignees?.forEach((assignee: any) => {
+        uniqueAssignees.add(assignee.login);
+      });
+      if (issue.user) {
+        uniqueAssignees.add(issue.user.login);
+      }
+    });
+
+    return {
+      total: issues.length,
+      open: openIssues.length,
+      closed: closedIssues.length,
+      inProgress: inProgressIssues.length,
+      teamMembers: uniqueAssignees.size,
+    };
+  }, [issuesData]);
+
+  const isLoading = webhookLoading || issuesLoading;
+
+  if (isLoading && !ownerRepo) {
     return <LoadingSpinner message="Loading dashboard..." />;
   }
 
-  const stats = webhookStats?.data?.data || {
+  const webhookStatistics = webhookStats?.data?.data || {
     totalEvents: 0,
     eventsByType: {},
     recentEvents: [],
   };
 
+  // Ensure recentEvents is always an array
+  if (!Array.isArray(webhookStatistics.recentEvents)) {
+    webhookStatistics.recentEvents = [];
+  }
+
   const dashboardCards = [
     {
       title: 'Total Issues',
-      value: '24',
+      value: issueStats.total.toString(),
       icon: <IssuesIcon />,
       color: '#1976d2',
-      change: '+12%',
+      change: ownerRepo ? `${issueStats.open} open` : 'Select repository',
     },
     {
       title: 'In Progress',
-      value: '8',
+      value: issueStats.inProgress.toString(),
       icon: <TrendingIcon />,
       color: '#ed6c02',
-      change: '+5%',
+      change: ownerRepo ? `${Math.round((issueStats.inProgress / Math.max(issueStats.open, 1)) * 100)}% of open` : 'Select repository',
     },
     {
       title: 'Completed',
-      value: '16',
+      value: issueStats.closed.toString(),
       icon: <ScheduleIcon />,
       color: '#2e7d32',
-      change: '+8%',
+      change: ownerRepo ? `${Math.round((issueStats.closed / Math.max(issueStats.total, 1)) * 100)}% completion` : 'Select repository',
     },
     {
       title: 'Team Members',
-      value: '5',
+      value: issueStats.teamMembers.toString(),
       icon: <TeamIcon />,
       color: '#9c27b0',
-      change: '0%',
+      change: ownerRepo ? 'Contributors' : 'Select repository',
     },
   ];
 
@@ -93,6 +155,39 @@ function DashboardPage() {
       <Typography variant="body1" color="text.secondary" paragraph>
         Overview of your GitHub issues and project progress
       </Typography>
+
+      {/* Repository Selection */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={8}>
+              <TextField
+                fullWidth
+                label="Repository (owner/repo)"
+                value={ownerRepo}
+                onChange={(e) => setOwnerRepo(e.target.value)}
+                placeholder="e.g., higexxp/task-management"
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+                }}
+                helperText="Enter a repository to load real GitHub statistics"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              {ownerRepo && (
+                <Box display="flex" alignItems="center" gap={1}>
+                  {issuesLoading && <LoadingSpinner size={20} />}
+                  {issuesError && (
+                    <Alert severity="error" sx={{ minWidth: 0 }}>
+                      Failed to load repository data
+                    </Alert>
+                  )}
+                </Box>
+              )}
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       <Grid container spacing={3}>
         {/* Stats Cards */}
@@ -139,11 +234,11 @@ function DashboardPage() {
             </Typography>
             <Box mb={2}>
               <Typography variant="body2" color="text.secondary">
-                Total Events: {stats.totalEvents}
+                Total Events: {webhookStatistics.totalEvents}
               </Typography>
             </Box>
             <Box display="flex" flexWrap="wrap" gap={1}>
-              {Object.entries(stats.eventsByType).map(([type, count]) => (
+              {Object.entries(webhookStatistics.eventsByType).map(([type, count]) => (
                 <Chip
                   key={type}
                   label={`${type}: ${count}`}
@@ -162,8 +257,8 @@ function DashboardPage() {
               Recent Activity
             </Typography>
             <List dense>
-              {stats.recentEvents.length > 0 ? (
-                stats.recentEvents.slice(0, 5).map((event: any, index: number) => (
+              {webhookStatistics.recentEvents && webhookStatistics.recentEvents.length > 0 ? (
+                webhookStatistics.recentEvents.slice(0, 5).map((event: any, index: number) => (
                   <ListItem key={index}>
                     <ListItemText
                       primary={`${event.eventType} - ${event.action}`}

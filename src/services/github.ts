@@ -34,16 +34,17 @@ export class GitHubService {
   // OAuth methods
   async exchangeCodeForToken(code: string): Promise<string> {
     try {
-      const { data } = await this.octokit.rest.apps.createInstallationAccessToken({
-        installation_id: 0, // This will be replaced with proper OAuth flow
+      logger.info('Exchanging code for token', {
+        clientId: config.github.clientId,
+        codeLength: code.length
       });
-      
-      // For now, use a simpler approach with OAuth app
+
       const response = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'User-Agent': 'GitHub-Task-Extension/1.0',
         },
         body: JSON.stringify({
           client_id: config.github.clientId,
@@ -52,15 +53,35 @@ export class GitHubService {
         }),
       });
 
-      const data_oauth = await response.json() as { access_token: string; error?: string };
-      
-      if (data_oauth.error) {
-        throw new Error(`OAuth error: ${data_oauth.error}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return data_oauth.access_token;
+      const data = await response.json() as {
+        access_token?: string;
+        error?: string;
+        error_description?: string;
+      };
+
+      logger.info('OAuth response received', {
+        hasAccessToken: !!data.access_token,
+        error: data.error
+      });
+
+      if (data.error) {
+        throw new Error(`OAuth error: ${data.error} - ${data.error_description || 'No description'}`);
+      }
+
+      if (!data.access_token) {
+        throw new Error('No access token received from GitHub');
+      }
+
+      return data.access_token;
     } catch (error) {
-      logger.error('Failed to exchange code for token', { error });
+      logger.error('Failed to exchange code for token', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        clientId: config.github.clientId
+      });
       throw error;
     }
   }
@@ -94,6 +115,13 @@ export class GitHubService {
     } = {}
   ): Promise<GitHubIssue[]> {
     try {
+      logger.info('Fetching repository issues', { 
+        owner, 
+        repo, 
+        options,
+        hasAuth: !!this.octokit.auth
+      });
+      
       const { data } = await this.octokit.rest.issues.listForRepo({
         owner,
         repo,
@@ -103,6 +131,17 @@ export class GitHubService {
         direction: options.direction || 'desc',
         per_page: options.per_page || 30,
         page: options.page || 1,
+      });
+
+      logger.info('GitHub API response', { 
+        owner, 
+        repo, 
+        issueCount: data.length,
+        firstIssue: data.length > 0 ? { 
+          number: data[0].number, 
+          title: data[0].title,
+          state: data[0].state 
+        } : null
       });
 
       return data.map(issue => ({
@@ -135,7 +174,13 @@ export class GitHubService {
         repository_url: issue.repository_url,
       }));
     } catch (error) {
-      logger.error('Failed to get repository issues', { owner, repo, error });
+      logger.error('Failed to get repository issues', { 
+        owner, 
+        repo, 
+        error: error instanceof Error ? error.message : error,
+        status: (error as any)?.status,
+        response: (error as any)?.response?.data
+      });
       throw error;
     }
   }
@@ -209,6 +254,25 @@ export class GitHubService {
     }
   }
 
+  async getRepositoryLabels(owner: string, repo: string): Promise<GitHubLabel[]> {
+    try {
+      const { data } = await this.octokit.rest.issues.listLabelsForRepo({
+        owner,
+        repo,
+      });
+
+      return data.map(label => ({
+        id: label.id,
+        name: label.name,
+        color: label.color,
+        description: label.description || undefined,
+      }));
+    } catch (error) {
+      logger.error('Failed to get repository labels', { owner, repo, error });
+      throw error;
+    }
+  }
+
   async createRepositoryLabel(
     owner: string,
     repo: string,
@@ -223,7 +287,7 @@ export class GitHubService {
         name,
         color,
       };
-      
+
       if (description !== undefined) {
         labelData.description = description;
       }
@@ -274,7 +338,7 @@ export class GitHubService {
   ): Promise<ExtendedIssue[]> {
     try {
       const issues = await this.getRepositoryIssues(owner, repo, options);
-      
+
       return issues.map(issue => {
         const metadata = this.metadataService.extractMetadataFromLabels(issue.labels);
         const parsedDependencies = this.parseDependenciesFromBody(issue.body || '', `${owner}/${repo}`);
@@ -306,13 +370,13 @@ export class GitHubService {
 
       // Get current issue to preserve existing labels
       const currentIssue = await this.getIssue(owner, repo, issueNumber);
-      
+
       // Merge existing labels with new metadata
       const newLabels = this.metadataService.mergeLabelsWithMetadata(currentIssue.labels, metadata);
-      
+
       // Update labels
       await this.updateIssueLabels(owner, repo, issueNumber, newLabels);
-      
+
       // Return updated extended issue
       return this.getExtendedIssue(owner, repo, issueNumber);
     } catch (error) {
@@ -324,13 +388,9 @@ export class GitHubService {
   async initializeRepositoryLabels(owner: string, repo: string): Promise<void> {
     try {
       const requiredLabels = this.metadataService.getAllRequiredLabels();
-      
-      // Get existing labels
-      const { data: existingLabels } = await this.octokit.rest.issues.listLabelsForRepo({
-        owner,
-        repo,
-      });
 
+      // Get existing labels
+      const existingLabels = await this.getRepositoryLabels(owner, repo);
       const existingLabelNames = new Set(existingLabels.map(label => label.name));
 
       // Create missing labels

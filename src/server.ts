@@ -1,12 +1,15 @@
 import express from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { redisService } from './services/redis.js';
+import { initializeWebSocket } from './services/websocket.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 
 const app = express();
+const httpServer = createServer(app);
 
 // Security middleware
 app.use(helmet());
@@ -41,6 +44,9 @@ import dependencyRoutes from './routes/dependencies.js';
 import issueRoutes from './routes/issues.js';
 import authRoutes from './routes/auth.js';
 import webhookRoutes from './routes/webhook.js';
+import workloadRoutes from './routes/workload.js';
+import timeTrackingRoutes from './routes/timeTracking.js';
+import syncRoutes from './routes/sync.js';
 
 // API routes
 app.use('/api/metadata', metadataRoutes);
@@ -48,6 +54,9 @@ app.use('/api/dependencies', dependencyRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/workload', workloadRoutes);
+app.use('/api/time-tracking', timeTrackingRoutes);
+app.use('/api/sync', syncRoutes);
 
 // Development endpoint to trigger usage check
 app.post('/api/dev/trigger-usage-check', (req, res) => {
@@ -78,6 +87,9 @@ app.get('/api', (req, res) => {
       issues: '/api/issues',
       auth: '/api/auth',
       webhooks: '/api/webhooks',
+      workload: '/api/workload',
+      timeTracking: '/api/time-tracking',
+      sync: '/api/sync',
     },
   });
 });
@@ -137,8 +149,12 @@ const startServer = async () => {
       logger.warn('Redis connection failed, continuing with in-memory fallback', { error });
     }
 
+    // Initialize WebSocket server
+    initializeWebSocket(httpServer);
+    logger.info('WebSocket server initialized');
+
     // Start HTTP server
-    app.listen(config.port, () => {
+    httpServer.listen(config.port, () => {
       logger.info(`Server running on port ${config.port} in ${config.env} mode`);
       logger.info('API endpoints available:');
       logger.info('  GET  /health - Health check');

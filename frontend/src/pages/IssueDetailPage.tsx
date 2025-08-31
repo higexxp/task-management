@@ -32,6 +32,7 @@ import {
   extractMetadataFromLabels,
   IssueMetadata,
 } from '../utils/metadata';
+import TimeTracker from '../components/TimeTracker';
 
 function IssueDetailPage() {
   const { owner, repo, number } = useParams<{
@@ -200,7 +201,7 @@ function IssueDetailPage() {
                   variant="outlined"
                 />
               </Box>
-              
+
               <Typography variant="h5" component="h2" gutterBottom>
                 {enhancedIssue.title}
               </Typography>
@@ -278,7 +279,7 @@ function IssueDetailPage() {
                 Metadata
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
+
               {isEditing ? (
                 <MetadataEditor
                   metadata={editingMetadata}
@@ -352,14 +353,14 @@ function IssueDetailPage() {
                   )}
 
                   {!enhancedIssue.metadata.priority &&
-                   !enhancedIssue.metadata.category &&
-                   !enhancedIssue.metadata.size &&
-                   !enhancedIssue.metadata.status &&
-                   !enhancedIssue.metadata.timeSpent && (
-                    <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                      No metadata available. Click "Edit Metadata" to add some.
-                    </Typography>
-                  )}
+                    !enhancedIssue.metadata.category &&
+                    !enhancedIssue.metadata.size &&
+                    !enhancedIssue.metadata.status &&
+                    !enhancedIssue.metadata.timeSpent && (
+                      <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                        No metadata available. Click "Edit Metadata" to add some.
+                      </Typography>
+                    )}
                 </Box>
               )}
             </CardContent>
@@ -391,6 +392,16 @@ function IssueDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Time Tracking */}
+          <Box sx={{ mt: 3 }}>
+            <TimeTracker
+              owner={owner!}
+              repo={repo!}
+              issueNumber={enhancedIssue.number}
+              userId="current-user" // In real app, get from auth context
+            />
+          </Box>
         </Grid>
       </Grid>
     </Box>
